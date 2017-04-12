@@ -79,7 +79,7 @@ void readStatusRegister(){
   } else {
     WIP = false;
   }
-  setSSHigh();
+  setSSHigh(); 
 }
 
 void WRDI(){
