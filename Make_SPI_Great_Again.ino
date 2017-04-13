@@ -1,3 +1,14 @@
+
+
+/*  Dette program sender indholdet af "arrayToSaveToFlash[]" over SPI
+ *   til MX25L6445E flashen som sidder på Papilioen. 
+ *   
+ * 
+ */
+
+
+
+
 /*  PINOUT
  * ------------------------------------------
  * |     Arduino  T Port      T  Papilio    |
@@ -10,55 +21,42 @@
 
 #define BASIC_ADRESS  0x7E8000
 
+// Da flashen er fyldt med 1'ere, skriver vi bevidst 0'ere
+// til den, så vi tjekker om vi rammer rigtigt.
+  int16_t arrayToSaveToFlash[] = {0x0000, 0x0000};
+  // int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
 
-// int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
-int16_t arrayToSaveToFlash[] = {0x0000, 0x0000};
 
-char storeReadData[2] = {0x00, 0x00};
-char storeRDSR = 0x00;
-char RDSCUR = 0x00;
+char storeReadData[2] = {0x00, 0x00}; // Her gemmer vi de to byte vi læser
+char storeRDSR = 0x00;                // RDSR gemmes her. Omskriv til lokal variabel
+char RDSCUR = 0x00;                   // RDSCUR gemmes her. Omskriv til lokal variabel
 
-boolean WEL = true;
-boolean WIP = false;
+boolean WEL = true;   // Write Enable Latch - bit
+boolean WIP = false;  // Write In Progress - bit
 
 void setup() {
-  DDRB = DDRB|B00101111; // Set input/output
-  
-  
+  DDRB = DDRB|B00101111; // Set input/output pinmodes
+
   Serial.begin(250000);
-  //delay(1000);
-  /*
-  writeStuff();
-  //delay(2000);
-  readTwoBytes();
-  //delay(2000);
-  Serial.print("storeReadData[0]: "); Serial.println(storeReadData[0], HEX);
-  Serial.print("storeReadData[1]: "); Serial.println(storeReadData[1], HEX);
-  */
   delay(2000);
 }
 
 void loop() {
-  /* VIRKER
-  for(int i = 0; i < 0xFF; i ++){
-    transmitOneByteSPI(i);
-  }
-  */
-
+  // Resetter globale variabler
   storeReadData[0] = 0x00;
   storeReadData[1] = 0x00;
   storeRDSR = 0x00;
   RDSCUR = 0x00;
   
-
-  writeStuff();
+  
+  writeStuff();   // Først skriver vi ting
   //delay(2000);
-  readTwoBytes();
+  readTwoBytes(); // Herefter læser vi ting
   //delay(2000);
-  Serial.print("storeReadData[0]:\t"); Serial.println(storeReadData[0], HEX);
-  Serial.print("storeReadData[1]:\t"); Serial.println(storeReadData[1], HEX);
+  Serial.print("storeReadData[0]:\t"); Serial.println(storeReadData[0], HEX); // og printer
+  Serial.print("storeReadData[1]:\t"); Serial.println(storeReadData[1], HEX); // hvad vi har læst
 
-  Serial.print("storeRDSR:\t\t"); Serial.println(storeRDSR, BIN);
+  Serial.print("storeRDSR:\t\t"); Serial.println(storeRDSR, BIN); // print RDSR
   Serial.println("");
 
   delay(1000);
@@ -82,7 +80,6 @@ void loop() {
 // ######################################
 // ####   SPECIFIC WRITE FUNCTIONS   ####
 // ######################################
-
   /* SÅDAN SER WRITE-CYCLEN UD!
    * ----------------------------
    * WREN                                         0x06
@@ -111,7 +108,7 @@ void writeEnable(){
   lowSS();                  // Step 1
   transmitOneByteSPI(0x06); // Step 2
   highSS();                 // Step 3
-}
+} // writeEnable
 
 void writeDisable(){
   /* The sequence of issuing WRDI instruction is: 
@@ -125,15 +122,20 @@ void writeDisable(){
   lowSS();
   transmitOneByteSPI(0x04); // WEL = 0
   highSS();
-  
-}
+} // writeDisable
 
 void readStatusRegister(){
-  highSS();  // Cycle
-  lowSS();   // Slave-select
-
-  transmitOneByteSPI(0x05); // RDSR
-  storeRDSR = readOneByteSPI();
+  /* The sequence of issuing RDSR instruction is: 
+   *  1 → CS# goes low
+   *  2 → sending RDSR instruction code
+   *  3 → Status Register data out on SO 
+   *  
+   *  Kilde: Databled pp. 17
+   */
+  cycleSS();                    // Step 1
+  transmitOneByteSPI(0x05);     // Step 2
+  storeRDSR = readOneByteSPI(); // Step 3
+  
   if(bitRead(storeRDSR, 1) == 1){
     WEL = true;
   } else {
@@ -144,7 +146,7 @@ void readStatusRegister(){
   } else {
     WIP = false;
   }
-  highSS(); 
+  highSS(); // High SS afterwards
 }
 
 void sendContinouslyProgramCommand(){
@@ -249,12 +251,10 @@ void continouslyProgram(){
 // ##################################
 
 void sendAdress(uint32_t adress){
-  /* Send adressen over SPI
-   *  
-   */
-  transmitOneByteSPI((adress&0xFF0000) >> 16);  // ----|
-  transmitOneByteSPI((adress&0x00FF00) >> 8);   //     |-> START Adressen i 24 bit
-  transmitOneByteSPI(adress&0x0000FF);          // ----|     á 8 bit pr. gang
+  // Send adressen over SPI
+  transmitOneByteSPI(adress&0xFF0000 >> 16);  // ----|
+  transmitOneByteSPI((adress >> 8) & 0xFF);   //     |-> START Adressen i 24 bit
+  transmitOneByteSPI(adress&0x0000FF);        // ----|     á 8 bit pr. gang
 }
 
 
@@ -277,10 +277,7 @@ char readOneByteSPI(){
 }
 
 char transmitOneByteSPI(char data){
-  // DDRB = DDRB|B00101111; // Set as output
-  
-  // lowSS(); -- Nah, it's allready done
-  // delayMicroseconds(1);
+  // DDRB = DDRB|B00101111; // Set as output - Overflødig
   for(int i = 7; i >= 0; i--){
     if(bitRead(data,i) == 1){
       highMosi();
@@ -299,7 +296,6 @@ char transmitOneByteSPI(char data){
 void readRDSCUR(){
   lowSS();
   transmitOneByteSPI(0x2B);
-  
   RDSCUR = readOneByteSPI();
   highSS();
 }
@@ -330,7 +326,7 @@ void readTwoBytes(){
    *   Kilde: Datablad pp. 19
    */
 
-  lowSS();               // Step 1
+  lowSS();                  // Step 1
   sendReadInstruction();    // Step 2
   sendAdress(BASIC_ADRESS); // Step 3
 
@@ -381,14 +377,18 @@ void writeStuff(){
    */
    
     writeEnable();          // Step 1
-    
+
+    // Vent på Write-Enable-Latch bliver 1
     do{                     // Step 2
       readStatusRegister(); // Step 2
       Serial.println("WR: 2");
     }while(!WEL);           // Step 2
 
+    // Fyr data afsted
     continouslyProgram();   // Step 3
 
+
+    // Vent på Write-In-Progress bitten bliver 0 igen
     do{                     // Step 4
       readStatusRegister(); // Step 4
       Serial.println("WR: 4");
@@ -401,7 +401,8 @@ void writeStuff(){
       // The programming failed! 
       throwErrorMessage();
     } else {
-      // Ting virkede! :D
+      // Ting virkede!
+      // Denne else er overflødig
       Serial.println("Ting virkede!");
     }
     writeDisable();
@@ -430,8 +431,8 @@ void throwErrorMessage(){
   Serial.println("-------------------------------------------");
   Serial.println("Something went wrong because you are stupid");
   Serial.println("-------------------------------------------");
-  Serial.print("RDSCUR:\t\t"); Serial.println(RDSCUR, BIN);
-  Serial.print("storeRDSR:\t"); Serial.println(storeRDSR, BIN);
+  Serial.print("RDSCUR:\t\t");      Serial.println(RDSCUR, BIN);
+  Serial.print("storeRDSR:\t");  Serial.println(storeRDSR, BIN);
   Serial.println("-------------------------------------------");
 }
 
@@ -457,32 +458,32 @@ void cycleSS(){
 }
 
 void lowMosi(){
-  //DDRB = DDRB|B00101111;  // Set as output
+  //DDRB = DDRB|B00101111;  // Set as output - Overflødig
   PORTB &=    B11110111;   // Set low
 }
 
 void highMosi(){
-  //DDRB = DDRB|B00101111; // Set as output
+  //DDRB = DDRB|B00101111; // Set as output - Overflødig
   PORTB |=    B00001000;  // Set it to high
 }
 
 void lowSS(){
-  //DDRB = DDRB|B00101111;  // Set as output
+  //DDRB = DDRB|B00101111;  // Set as output - Overflødig
   PORTB &=    B11111011;   // Set low
 }
 
 void highSS(){
-  //DDRB = DDRB|B00101111; // Set as output
+  //DDRB = DDRB|B00101111; // Set as output - Overflødig
   PORTB |=    B00000100;  // Set it to high
 }
 
 void highClock(){
-  //DDRB = DDRB|B00101111; // Set as output
+  //DDRB = DDRB|B00101111; // Set as output - Overflødig
   PORTB |=    B00100000;  // Set it to high
 }
 
 void lowClock(){
-  //DDRB = DDRB|B00101111;  // Set as output
+  //DDRB = DDRB|B00101111;  // Set as output - Overflødig
   PORTB &=    B11011111;   // Set low
 }
 
