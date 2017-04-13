@@ -1,10 +1,11 @@
-/*
- * Clock:   13  B00100000
- * MISO:    12  B00010000
- * MOSI:    11  B00001000
- * SS:      10  B00000100
+/*  PINOUT
+ *    Arduino  T Port      T  Papilio
+ * Clock:   13 | B00100000 |  13
+ * MISO:    12 | B00010000 |  12
+ * MOSI:    11 | B00001000 |  11
+ * SS:      10 | B00000100 |  09
+ * 
  */
-
 
 
 // int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
