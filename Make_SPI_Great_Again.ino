@@ -263,10 +263,7 @@ char readOneByteSPI(){
   // Læs data
   lowMosi();
   for(int k = 7; k >= 0; k--){
-    highClock();
-    delayMicroseconds(1);
-    lowClock();
-    delayMicroseconds(1);
+    cycleClock();
     
     // Hvis data in er HIGH efter falling-edge clock
     if(bitRead(PINB, 4) == 1){
@@ -284,10 +281,7 @@ char transmitOneByteSPI(char data){
     } else {
       lowMosi();
     }
-    highClock();
-    delayMicroseconds(1);
-    lowClock();
-    delayMicroseconds(1);    
+    cycleClock();   
   }// for
  
 }
@@ -455,6 +449,13 @@ void throwErrorMessage(){
 void cycleSS(){
   highSS();
   lowSS();
+}
+
+void cycleClock(){
+  highClock();
+  delayMicroseconds(1);
+  lowClock();
+  delayMicroseconds(1);
 }
 
 void lowMosi(){
