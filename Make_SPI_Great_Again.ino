@@ -1,11 +1,14 @@
 /*  PINOUT
- *    Arduino  T Port      T  Papilio
- * Clock:   13 | B00100000 |  13
- * MISO:    12 | B00010000 |  12
- * MOSI:    11 | B00001000 |  11
- * SS:      10 | B00000100 |  09
- * 
+ * ------------------------------------------
+ * |     Arduino  T Port      T  Papilio    |
+ * |  Clock:   13 | B00100000 |  13         |
+ * |  MISO:    12 | B00010000 |  12         |
+ * |  MOSI:    11 | B00001000 |  11         |
+ * |  SS:      10 | B00000100 |  09         |
+ * ------------------------------------------
  */
+
+#define BASIC_ADRESS  0x7E8000
 
 
 // int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
@@ -128,33 +131,52 @@ void readStatusRegister(){
   setSSHigh(); 
 }
 
-void sendContinouslyCommand(){
+void sendContinouslyProgramCommand(){
   transmitOneByteSPI(0xAD); // CP command
 }
 
 void continouslyProgram(){
-      setSSLow();
-      if(sizeof(arrayToSaveToFlash) > 2){
-        sendContinouslyCommand();
+/* The sequence of issuing CP instruction is: 
+ *  1 → CS# goes low  
+ *  2 → sending CP instruction code
+ *  3 → 3-byte address on SI pin
+ *  4 → two data bytes on SI
+ *  5 → CS# goes high to low 
+ *  6 → sending CP instruction and then continue two data bytes are programmed
+ *  7 → CS# goes high to low
+ *  8 → till last desired two data bytes are programmed
+ *  9 → CS# goes high to low
+ * 10 → sending WRDI (Write Disable) instruction to end CP mode
+ *   
+ *  → send RDSR instruction to verify if CP mode word program ends, or send RDSCUR to check bit4 to verify if CP mode ends. 
+ */
   
-        transmitOneByteSPI(0x7E);// ----|   
-        transmitOneByteSPI(0x80);//     |-> START Adressen i 24 bit
-        transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
+  setSSLow();                         // Step 1
+  sendContinouslyProgramCommand();    // Step 2
+
+  sendAdress(BASIC_ADRESS);
+
+  // Herefter bliver al dataen sendt afsted
+  for(int i = 0; i < sizeof(arrayToSaveToFlash); i = i++){
+    // Først skal dataen opdeles, da de ligger i 16-bit samples
+    // og det kun er muligt at smide 1 byte afsted ad gangen.
+    transmitOneByteSPI(arrayToSaveToFlash[i]>>8);       // First data byte
+    transmitOneByteSPI(arrayToSaveToFlash[i]&0x00FF);   // Second
+
+    // Cycle Slave-Select (HIGH → LOW)
+    cycleSS();  // Step 5
+
+    // Hvis der er mere data der skal afsted (aka min. 1 sample mere)
+    if(i < sizeof(arrayToSaveToFlash) - 1){
+      sendContinouslyProgramCommand(); // Step 6
+    }// if
+  }// for
+
+  // Cycle Slave-Select (HIGH → LOW)
+  cycleSS();      // Step 9 -> Jeg er ikke sikker på denne egentlig skal være her? 
+  writeDisable(); // Step 10
   
-        for(int i = 0; i <= sizeof(arrayToSaveToFlash); i = i + 2){
-          transmitOneByteSPI(arrayToSaveToFlash[i]>>8);       // First data byte
-          transmitOneByteSPI(arrayToSaveToFlash[i]&0x00FF);   // Second
-          
-          cycleSS();
-          if(i < sizeof(arrayToSaveToFlash) - 2){
-            sendContinouslyCommand();
-          }
-        }
-        writeDisable();
-      } else {
-        // Hvis der 2 byte eller derunder! (det sker måske ikke)
-      }
-    }
+}// continouslyProgram
 
 
 
@@ -212,6 +234,9 @@ void sendAdress(uint32_t adress){
   /* Send adressen over SPI
    *  
    */
+  transmitOneByteSPI((adress&0xFF0000) >> 16);  // ----|
+  transmitOneByteSPI((adress&0x00FF00) >> 8);   //     |-> START Adressen i 24 bit
+  transmitOneByteSPI(adress&0x0000FF);          // ----|     á 8 bit pr. gang
 }
 
 
@@ -225,13 +250,10 @@ char readOneByteSPI(){
     lowClock();
     delayMicroseconds(1);
     
-    // Hvis data in er HIGH efter falling
+    // Hvis data in er HIGH efter falling-edge clock
     if(bitRead(PINB, 4) == 1){
-      bitSet(tempInputData, k);  
-    } /* else {
-      bitClear(tempInputData, k);
-    }// if
-    */
+      bitSet(tempInputData, k);  // Sæt den pågældende bit high
+    } 
   }// for
   return tempInputData;
 }
