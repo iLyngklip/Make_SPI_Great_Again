@@ -339,7 +339,7 @@ void writeStuff(){
    * WREN                                         0x06
    * RDSR                                         0x05
    *  L_ WREN=1?                                    Bit 1 fra RDSR
-   * Contenious program mode                      0xAD 
+   * Continously program mode                     0xAD 
    *  L_ Adressen                                   ADD(24)
    *  L_ Write data                                 DATA(16)
    * RDSR command                                 0x05
@@ -347,6 +347,21 @@ void writeStuff(){
    * RDSCUR command - Tjek om det lykkedes        0x2B
    *  L_ P_FAIL / E_FAIL = 1?                       FORFRA! ALT ER DONE! :o
    * WREN = 0   0x04  Denne er skrevet!
+   * 
+   * ------------------------------------------------------------------------------
+   * | TEKST-version:                                                             |
+   * ------------------------------------------------------------------------------
+   * || Write-Enable sendes (step 1) hvorefter vi afventer chippen er klar        |
+   * || til at modtage data (step 2). Dette tjekkes med bit 1 fra                 |
+   * || statusregistret (RDSR). Nu sættes chippen i Continously-Program (CP) mode |
+   * || (step 3). Hvordan denne fungerer kan læses i funktionen                   |
+   * || continouslyProgram(). Når continouslyProgram() er færdig med at skrive    |
+   * || data til flash'en tjekkes bit 0 fra RDSR (step 4) Er denne = 0, er        |
+   * || chippen færdig med at gemme og derfor klar til nye ting.                  |
+   * || For at tjekke om dataen blev skrevet til flashen tjekkes P_FAIL & E_FAIL  |
+   * || som er bit 5 & 6 fra RDSR. Er disse HIGH mislykkedes hele operationen og  |
+   * || hele writeStuff() skal køres forfra.                                      |
+   * ------------------------------------------------------------------------------
    */
    
     writeEnable();          // Step 1
