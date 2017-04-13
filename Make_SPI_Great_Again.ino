@@ -102,19 +102,19 @@ void loop() {
 void writeEnable(){
   setSSHigh();
   transmitOneByteSPI(0x06); // WEL = 1
-  setSSLow();
+  lowSS();
   Serial.println("WE");
 }
 
 void writeDisable(){
   setSSHigh();
   transmitOneByteSPI(0x04); // WEL = 0
-  setSSLow();
+  lowSS();
 }
 
 void readStatusRegister(){
   setSSHigh();  // Cycle
-  setSSLow();   // Slave-select
+  lowSS();   // Slave-select
 
   transmitOneByteSPI(0x05); // RDSR
   storeRDSR = readOneByteSPI();
@@ -151,10 +151,9 @@ void continouslyProgram(){
  *  → send RDSR instruction to verify if CP mode word program ends, or send RDSCUR to check bit4 to verify if CP mode ends. 
  */
   
-  setSSLow();                         // Step 1
+  lowSS();                            // Step 1
   sendContinouslyProgramCommand();    // Step 2
-
-  sendAdress(BASIC_ADRESS);
+  sendAdress(BASIC_ADRESS);           // Step 3 
 
   // Herefter bliver al dataen sendt afsted
   for(int i = 0; i < sizeof(arrayToSaveToFlash); i = i++){
@@ -277,13 +276,12 @@ char transmitOneByteSPI(char data){
     lowClock();
     delayMicroseconds(1);    
   }// for
-
  
 }
 
 
 void readRDSCUR(){
-  setSSLow();
+  lowSS();
   transmitOneByteSPI(0x2B);
   
   RDSCUR = readOneByteSPI();
@@ -316,7 +314,7 @@ void readTwoBytes(){
    *   Kilde: Datablad pp. 19
    */
 
-  setSSLow();               // Step 1
+  lowSS();               // Step 1
   sendReadInstruction();    // Step 2
   sendAdress(BASIC_ADRESS); // Step 3
 
@@ -438,12 +436,10 @@ void throwErrorMessage(){
 // #############################
 void cycleSS(){
   setSSHigh();
-  setSSLow();
+  lowSS();
 }
 
-void setSSLow(){
-  PORTB =     B00000000; // Set ALL low
-}
+
 
 void setSSHigh(){
   PORTB =     B00000100; // Set SS high  
