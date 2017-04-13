@@ -100,20 +100,20 @@ void loop() {
 
 
 void writeEnable(){
-  setSSHigh();
+  highSS();
   transmitOneByteSPI(0x06); // WEL = 1
   lowSS();
   Serial.println("WE");
 }
 
 void writeDisable(){
-  setSSHigh();
+  highSS();
   transmitOneByteSPI(0x04); // WEL = 0
   lowSS();
 }
 
 void readStatusRegister(){
-  setSSHigh();  // Cycle
+  highSS();  // Cycle
   lowSS();   // Slave-select
 
   transmitOneByteSPI(0x05); // RDSR
@@ -128,7 +128,7 @@ void readStatusRegister(){
   } else {
     WIP = false;
   }
-  setSSHigh(); 
+  highSS(); 
 }
 
 void sendContinouslyProgramCommand(){
@@ -285,7 +285,7 @@ void readRDSCUR(){
   transmitOneByteSPI(0x2B);
   
   RDSCUR = readOneByteSPI();
-  setSSHigh();
+  highSS();
 }
 
 
@@ -329,7 +329,7 @@ void readTwoBytes(){
   storeReadData[1] = readOneByteSPI();//  ---|    i en global variabel, for nu.
                                       //  ---| Skift denne til at bruge readData() i stedet
   
-  setSSHigh();  // Step 5
+  highSS();  // Step 5
   // Vi er done
 }
 
@@ -387,7 +387,7 @@ void writeStuff(){
     writeDisable();
   */
     
-    setSSHigh(); // Vi er done nu
+    highSS(); // Vi er done nu
 
 }
 
@@ -435,14 +435,8 @@ void throwErrorMessage(){
 // ####   BASIC FUNCTIONS   ####
 // #############################
 void cycleSS(){
-  setSSHigh();
+  highSS();
   lowSS();
-}
-
-
-
-void setSSHigh(){
-  PORTB =     B00000100; // Set SS high  
 }
 
 void lowMosi(){
