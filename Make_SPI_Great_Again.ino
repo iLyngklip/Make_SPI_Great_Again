@@ -30,7 +30,7 @@ void setup() {
   /*
   writeStuff();
   //delay(2000);
-  readStuff();
+  readTwoBytes();
   //delay(2000);
   Serial.print("storeReadData[0]: "); Serial.println(storeReadData[0], HEX);
   Serial.print("storeReadData[1]: "); Serial.println(storeReadData[1], HEX);
@@ -53,7 +53,7 @@ void loop() {
 
   writeStuff();
   //delay(2000);
-  readStuff();
+  readTwoBytes();
   //delay(2000);
   Serial.print("storeReadData[0]:\t"); Serial.println(storeReadData[0], HEX);
   Serial.print("storeReadData[1]:\t"); Serial.println(storeReadData[1], HEX);
@@ -195,17 +195,20 @@ void continouslyProgram(){
 // #####################################
 // ####   SPECIFIC READ FUNCTIONS   ####
 // #####################################
-  /* SÅDAN SER READ-CYCLEN UD
-   * --------------------------------
-   * Read instruction     0x03            <- SPECIFIC READ FUNCTIONS
-   * Adresse              ADD(24)         <- READ/WRITE FUNCTIONS
-   * Data                 Kommer ind      <- SPECIFIC READ FUNCTIONS
-   * SS high for at slutte
+  /*  The sequence of issuing READ instruction is: 
+   *   1 → CS# goes low
+   *   2 → sending READ instruction code
+   *   3 → 3-byte address on SI 
+   *   4 → data out on SO
+   *   5 → to end READ operation can use CS# to high at any time during data out. 
+   *   
+   *   Kilde: Datablad pp. 19
    */
 
   void sendReadInstruction(){
     /*  Send read-kommandoen til flashen
      */
+    transmitOneByteSPI(0x03); // Read command
   }
 
   void readData(char lenghtInBytes){
@@ -302,26 +305,34 @@ void readRDSCUR(){
 // ##################################
 // ####   READ/WRITE FUNCTIONS   ####
 // ##################################
-void readStuff(){
-  /* SÅDAN SER READ-CYCLEN UD
-   * --------------------------------
-   * Read instruction     0x03
-   * Adresse              ADD(24)
-   * Data                 Kommer ind
-   * SS high for at slutte
+void readTwoBytes(){
+  /*  The sequence of issuing READ instruction is: 
+   *   1 → CS# goes low
+   *   2 → sending READ instruction code
+   *   3 → 3-byte address on SI 
+   *   4 → data out on SO
+   *   5 → to end READ operation can use CS# to high at any time during data out. 
+   *   
+   *   Kilde: Datablad pp. 19
    */
-  setSSLow(); // Gør klar
+
+  setSSLow();               // Step 1
+  sendReadInstruction();    // Step 2
+  sendAdress(BASIC_ADRESS); // Step 3
+
+  /*
+    transmitOneByteSPI(0x7E);// ----|
+    transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
+    transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
+  */
+
+  // Step 4 
+  storeReadData[0] = readOneByteSPI();//  ---|-> Læser 2x8 bit og gemmer dem
+  storeReadData[1] = readOneByteSPI();//  ---|    i en global variabel, for nu.
+                                      //  ---| Skift denne til at bruge readData() i stedet
   
-  transmitOneByteSPI(0x03); // Read command
-
-  transmitOneByteSPI(0x7E);// ----|
-  transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
-  transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
-
-  storeReadData[0] = readOneByteSPI();//  ---|
-  storeReadData[1] = readOneByteSPI();//  ---|-> Læser 2x8 bit og gemmer dem
-
-  setSSHigh(); // Vi er done
+  setSSHigh();  // Step 5
+  // Vi er done
 }
 
 void writeStuff(){
