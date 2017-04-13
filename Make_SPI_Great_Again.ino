@@ -100,16 +100,32 @@ void loop() {
 
 
 void writeEnable(){
-  highSS();
-  transmitOneByteSPI(0x06); // WEL = 1
-  lowSS();
-  Serial.println("WE");
+  /* The sequence of issuing WREN instruction is: 
+   *  1 → CS# goes low
+   *  2 → sending WREN instruction code
+   *  3 → CS# goes high.
+   * 
+   *  Kilde: Datablad pp. 16
+   */
+   
+  lowSS();                  // Step 1
+  transmitOneByteSPI(0x06); // Step 2
+  highSS();                 // Step 3
 }
 
 void writeDisable(){
-  highSS();
-  transmitOneByteSPI(0x04); // WEL = 0
+  /* The sequence of issuing WRDI instruction is: 
+   *  1 → CS# goes low
+   *  2 → sending WRDI instruction code
+   *  3 → CS# goes high. 
+   *  
+   *  Kilde: Datablad pp. 16
+   */
+   
   lowSS();
+  transmitOneByteSPI(0x04); // WEL = 0
+  highSS();
+  
 }
 
 void readStatusRegister(){
@@ -376,9 +392,10 @@ void writeStuff(){
     do{                     // Step 4
       readStatusRegister(); // Step 4
       Serial.println("WR: 4");
-    }while(WIP);           // Step 4
+    }while(WIP);            // Step 4
 
     readRDSCUR();           // Step 5
+    
     // Her tjekker vi om det faktisk lykkedes
     if(bitRead(RDSCUR, 5) == 1 || bitRead(RDSCUR, 6) == 1){
       // The programming failed! 
@@ -387,23 +404,8 @@ void writeStuff(){
       // Ting virkede! :D
       Serial.println("Ting virkede!");
     }
-
-  /* Bruges ikke mere
-    transmitOneByteSPI(0x7E);// ----|
-    transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
-    transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
-  
-    transmitOneByteSPI(0xAD);// ----|-> Data i 16 bit
-    transmitOneByteSPI(0xAD);// ----|     á 8 bit pr. gang
-  
-    readStatusRegister();     // read dat shit
-
-    
     writeDisable();
-  */
-    
     highSS(); // Vi er done nu
-
 }
 
 
