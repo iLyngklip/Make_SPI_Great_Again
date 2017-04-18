@@ -1,4 +1,4 @@
-
+#include "AudioSamples.h"
 
 /*  Dette program sender indholdet af "arrayToSaveToFlash[]" over SPI
  *   til MX25L6445E flashen som sidder på Papilioen. 
@@ -25,6 +25,10 @@
 // til den, så vi tjekker om vi rammer rigtigt.
   int16_t arrayToSaveToFlash[] = {0x0000, 0x0000};
   // int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
+int16_t arrayOfArrays[] = {
+  &arrayToSaveToFlash
+          };
+
 
 
 char storeReadData[2] = {0x00, 0x00}; // Her gemmer vi de to byte vi læser
@@ -48,6 +52,8 @@ void loop() {
   storeRDSR = 0x00;
   RDSCUR = 0x00;
   
+
+
   
   writeStuff();   // Først skriver vi ting
   //delay(2000);
@@ -84,14 +90,14 @@ void loop() {
    * ----------------------------
    * WREN                                         0x06
    * RDSR                                         0x05
-   *  L_ WREN=1?                                    Bit 1 fra RDSR
+   *  ↳ WREN=1?                                    Bit 1 fra RDSR
    * Contenious program mode                      0xAD 
-   *  L_ Adressen                                   ADD(24)
-   *  L_ Write data                                 DATA(16)
+   *  ↳ Adressen                                   ADD(24)
+   *  ↳ Write data                                 DATA(16)
    * RDSR command                                 0x05
-   *  L_ WIP = 0?                                   Bit 0 fra RDSR      
+   *  ↳ WIP = 0?                                   Bit 0 fra RDSR      
    * RDSCUR command - Tjek om det lykkedes        0x2B
-   *  L_ P_FAIL / E_FAIL = 1?                       FORFRA! ALT ER DONE! :o
+   *  ↳ P_FAIL / E_FAIL = 1?                       FORFRA! ALT ER DONE! :o
    * WREN = 0   0x04
    */
 
@@ -166,7 +172,7 @@ void continouslyProgram(){
  *  9 → CS# goes high to low
  * 10 → sending WRDI (Write Disable) instruction to end CP mode
  *   
- *  → send RDSR instruction to verify if CP mode word program ends, or send RDSCUR to check bit4 to verify if CP mode ends. 
+ * 10.5 → send RDSR instruction to verify if CP mode word program ends, or send RDSCUR to check bit4 to verify if CP mode ends. 
  */
   
   lowSS();                            // Step 1
