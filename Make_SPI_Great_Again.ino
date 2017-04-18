@@ -23,7 +23,7 @@
 
 // Da flashen er fyldt med 1'ere, skriver vi bevidst 0'ere
 // til den, så vi tjekker om vi rammer rigtigt.
-  int16_t arrayToSaveToFlash[] = {0x0000, 0x0000};
+  int16_t arrayToSaveToFlash[] = {0x00F0, 0x00F0};
   // int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
 int16_t arrayOfArrays[] = {
   &arrayToSaveToFlash
@@ -138,7 +138,8 @@ void readStatusRegister(){
    *  
    *  Kilde: Databled pp. 17
    */
-  cycleSS();                    // Step 1
+  highSS();                     // Cycle
+  lowSS();                      // Slave-select
   transmitOneByteSPI(0x05);     // Step 2
   storeRDSR = readOneByteSPI(); // Step 3
   
@@ -157,6 +158,7 @@ void readStatusRegister(){
 
 void sendContinouslyProgramCommand(){
   transmitOneByteSPI(0xAD); // CP command
+  
 }
 
 void continouslyProgram(){
@@ -174,13 +176,15 @@ void continouslyProgram(){
  *   
  * 10.5 → send RDSR instruction to verify if CP mode word program ends, or send RDSCUR to check bit4 to verify if CP mode ends. 
  */
-  
+  highSS();                           // just to be safe
   lowSS();                            // Step 1
+  Serial.println("sendContinouslyProgramCommand");
   sendContinouslyProgramCommand();    // Step 2
   sendAdress(BASIC_ADRESS);           // Step 3 
-
+  Serial.println("Adress sent");
   // Herefter bliver al dataen sendt afsted
-  for(int i = 0; i < sizeof(arrayToSaveToFlash); i = i++){
+  for(int i = 0; i < 2; i++){
+    Serial.println("For-loop");
     // Først skal dataen opdeles, da de ligger i 16-bit samples
     // og det kun er muligt at smide 1 byte afsted ad gangen.
     transmitOneByteSPI(arrayToSaveToFlash[i]>>8);       // First data byte
@@ -258,9 +262,14 @@ void continouslyProgram(){
 
 void sendAdress(uint32_t adress){
   // Send adressen over SPI
+/*
   transmitOneByteSPI(adress&0xFF0000 >> 16);  // ----|
   transmitOneByteSPI((adress >> 8) & 0xFF);   //     |-> START Adressen i 24 bit
   transmitOneByteSPI(adress&0x0000FF);        // ----|     á 8 bit pr. gang
+*/
+    transmitOneByteSPI(0x7E);// ----|
+    transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
+    transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
 }
 
 
@@ -270,9 +279,9 @@ char readOneByteSPI(){
   lowMosi();
   for(int k = 7; k >= 0; k--){
     cycleClock();
-    
+    delayMicroseconds(3);
     // Hvis data in er HIGH efter falling-edge clock
-    if(bitRead(PINB, 4) == 1){
+    if(bitRead(PINB, 4)){
       bitSet(tempInputData, k);  // Sæt den pågældende bit high
     } 
   }// for
@@ -382,7 +391,7 @@ void writeStuff(){
     do{                     
       writeEnable();        // Step 1  
       readStatusRegister(); // Step 2
-      Serial.println("WEL 0");
+      Serial.print("RDSR: "); Serial.println(storeRDSR, BIN);
     }while(!WEL);           // Step 2
 
     // Fyr data afsted
