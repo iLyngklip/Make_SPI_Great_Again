@@ -134,7 +134,7 @@ void readStatusRegister(){
   /* The sequence of issuing RDSR instruction is: 
    *  1 → CS# goes low
    *  2 → sending RDSR instruction code
-   *  3 → Status Register data out on SO 
+   *  3 → Status Register data out on MISO 
    *  
    *  Kilde: Databled pp. 17
    */
@@ -143,14 +143,14 @@ void readStatusRegister(){
   storeRDSR = readOneByteSPI(); // Step 3
   
   if(bitRead(storeRDSR, 1) == 1){
-    WEL = true;
+    WEL = 1;
   } else {
-    WEL = false;
+    WEL = 0;
   }
   if(bitRead(storeRDSR, 0) == 1){
-    WIP = true;
+    WIP = 1;
   } else {
-    WIP = false;
+    WIP = 0;
   }
   highSS(); // High SS afterwards
 }
