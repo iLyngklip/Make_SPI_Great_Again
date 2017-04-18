@@ -381,7 +381,7 @@ void writeStuff(){
     // Vent på Write-Enable-Latch bliver 1
     do{                     // Step 2
       readStatusRegister(); // Step 2
-      Serial.println("WR: 2");
+      Serial.println("WEL 0");
     }while(!WEL);           // Step 2
 
     // Fyr data afsted
@@ -391,7 +391,7 @@ void writeStuff(){
     // Vent på Write-In-Progress bitten bliver 0 igen
     do{                     // Step 4
       readStatusRegister(); // Step 4
-      Serial.println("WR: 4");
+      Serial.println("WIP 1");
     }while(WIP);            // Step 4
 
     readRDSCUR();           // Step 5
