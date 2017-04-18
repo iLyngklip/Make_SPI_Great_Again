@@ -350,16 +350,16 @@ void writeStuff(){
    * ----------------------------
    * WREN                                         0x06
    * RDSR                                         0x05
-   *  L_ WREN=1?                                    Bit 1 fra RDSR
-   * Continously program mode                     0xAD 
-   *  L_ Adressen                                   ADD(24)
-   *  L_ Write data                                 DATA(16)
+   *  ↳ WREN=1?                                    Bit 1 fra RDSR
+   * Contenious program mode                      0xAD 
+   *  ↳ Adressen                                   ADD(24)
+   *  ↳ Write data                                 DATA(16)
    * RDSR command                                 0x05
-   *  L_ WIP = 0?                                   Bit 0 fra RDSR      
+   *  ↳ WIP = 0?                                   Bit 0 fra RDSR      
    * RDSCUR command - Tjek om det lykkedes        0x2B
-   *  L_ P_FAIL / E_FAIL = 1?                       FORFRA! ALT ER DONE! :o
-   * WREN = 0   0x04  Denne er skrevet!
-   * 
+   *  ↳ P_FAIL / E_FAIL = 1?                       FORFRA! ALT ER DONE! :o
+   * WREN = 0   0x04
+   *
    * ------------------------------------------------------------------------------
    * | TEKST-version:                                                             |
    * ------------------------------------------------------------------------------
@@ -376,10 +376,11 @@ void writeStuff(){
    * ------------------------------------------------------------------------------
    */
    
-    writeEnable();          // Step 1
+    
 
     // Vent på Write-Enable-Latch bliver 1
-    do{                     // Step 2
+    do{                     
+      writeEnable();        // Step 1  
       readStatusRegister(); // Step 2
       Serial.println("WEL 0");
     }while(!WEL);           // Step 2
