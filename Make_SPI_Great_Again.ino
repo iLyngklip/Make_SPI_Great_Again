@@ -258,9 +258,16 @@ void continouslyProgram(){
 
 void sendAdress(uint32_t adress){
   // Send adressen over SPI
+/*
   transmitOneByteSPI(adress&0xFF0000 >> 16);  // ----|
   transmitOneByteSPI((adress >> 8) & 0xFF);   //     |-> START Adressen i 24 bit
   transmitOneByteSPI(adress&0x0000FF);        // ----|     á 8 bit pr. gang
+*/
+
+
+  transmitOneByteSPI(0x7E);// ----|
+  transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
+  transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
 }
 
 
@@ -273,9 +280,12 @@ char readOneByteSPI(){
     
     // Hvis data in er HIGH efter falling-edge clock
     if(bitRead(PINB, 4) == 1){
-      bitSet(tempInputData, k);  // Sæt den pågældende bit high
-    } 
+      bitSet(tempInputData, k-1);  // Sæt den pågældende bit high
+    } else {
+      bitClear(tempInputData, k-1);
+    }
   }// for
+  Serial.print("tempInputData: "); Serial.println(tempInputData, BIN);
   return tempInputData;
 }
 
@@ -330,7 +340,7 @@ void readTwoBytes(){
   sendReadInstruction();    // Step 2
   sendAdress(BASIC_ADRESS); // Step 3
 
-  /*
+  /*  Denne bruger vi ikke mere, brug sendAdress()
     transmitOneByteSPI(0x7E);// ----|
     transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
     transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
@@ -382,7 +392,7 @@ void writeStuff(){
     do{                     
       writeEnable();        // Step 1  
       readStatusRegister(); // Step 2
-      Serial.println("WEL 0");
+      Serial.print("RDSR: "); Serial.println(storeRDSR, BIN);
     }while(!WEL);           // Step 2
 
     // Fyr data afsted
