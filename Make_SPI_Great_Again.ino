@@ -19,11 +19,12 @@
  * ------------------------------------------
  */
 
-#define BASIC_ADRESS  0x7E8000
-
+#define BASIC_ADRESS      0x000000 
+#define BASIC_ADRESS_OLD  0x7E8000
+uint32_t adressenViHusker = BASIC_ADRESS;
 // Da flashen er fyldt med 1'ere, skriver vi bevidst 0'ere
 // til den, så vi tjekker om vi rammer rigtigt.
-  int16_t arrayToSaveToFlash[] = {0x00F0, 0x00F0};
+  int16_t arrayToSaveToFlash[] = {0xAAAA, 0xAAAA};
   // int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
 int16_t arrayOfArrays[] = {
   &arrayToSaveToFlash
@@ -37,6 +38,9 @@ char RDSCUR = 0x00;                   // RDSCUR gemmes her. Omskriv til lokal va
 
 boolean WEL = true;   // Write Enable Latch - bit
 boolean WIP = false;  // Write In Progress - bit
+boolean BP0 = true;//   |
+boolean BP1 = true;//   |-> Protection
+boolean BP2 = true;//   |
 
 void setup() {
   DDRB = DDRB|B00101111; // Set input/output pinmodes
@@ -51,25 +55,38 @@ void loop() {
   storeReadData[1] = 0x00;
   storeRDSR = 0x00;
   RDSCUR = 0x00;
-  
+  if(adressenViHusker == BASIC_ADRESS + 0xF){
+    adressenViHusker = BASIC_ADRESS;
+  } else {
+    adressenViHusker++;
+  }
 
 
   
   writeStuff();   // Først skriver vi ting
   //delay(2000);
+  checkBP();
   readTwoBytes(); // Herefter læser vi ting
   //delay(2000);
+  
+  Serial.print("adressenViHusker:\t"); Serial.println(adressenViHusker, HEX);
   Serial.print("storeReadData[0]:\t"); Serial.println(storeReadData[0], HEX); // og printer
   Serial.print("storeReadData[1]:\t"); Serial.println(storeReadData[1], HEX); // hvad vi har læst
 
   Serial.print("storeRDSR:\t\t"); Serial.println(storeRDSR, BIN); // print RDSR
   Serial.println("");
 
-  delay(1000);
+  delay(10);
 }
 
 
-
+void checkBP(){
+  if(BP0 ||  BP1 || BP2){
+    Serial.println("Something is protected");
+  } else {
+    Serial.println("NOT protected");
+  }
+}
 
 
 
@@ -153,6 +170,22 @@ void readStatusRegister(){
   } else {
     WIP = 0;
   }
+  if(bitRead(storeRDSR, 2) == 1){
+    BP0 = 1;
+  } else {
+    BP0 = 0;
+  }
+  if(bitRead(storeRDSR, 3) == 1){
+    BP1 = 1;
+  } else {
+    BP1 = 0;
+  }
+  if(bitRead(storeRDSR, 4) == 1){
+    BP2 = 1;
+  } else {
+    BP2 = 0;
+  }
+  
   highSS(); // High SS afterwards
 }
 
@@ -178,13 +211,13 @@ void continouslyProgram(){
  */
   highSS();                           // just to be safe
   lowSS();                            // Step 1
-  Serial.println("sendContinouslyProgramCommand");
+// Serial.println("sendContinouslyProgramCommand");
   sendContinouslyProgramCommand();    // Step 2
-  sendAdress(BASIC_ADRESS);           // Step 3 
-  Serial.println("Adress sent");
+  sendAdress(adressenViHusker);           // Step 3 
+// Serial.println("Adress sent");
   // Herefter bliver al dataen sendt afsted
   for(int i = 0; i < 2; i++){
-    Serial.println("For-loop");
+  // Serial.println("For-loop");
     // Først skal dataen opdeles, da de ligger i 16-bit samples
     // og det kun er muligt at smide 1 byte afsted ad gangen.
     transmitOneByteSPI(arrayToSaveToFlash[i]>>8);       // First data byte
@@ -262,14 +295,16 @@ void continouslyProgram(){
 
 void sendAdress(uint32_t adress){
   // Send adressen over SPI
-/*
-  transmitOneByteSPI(adress&0xFF0000 >> 16);  // ----|
-  transmitOneByteSPI((adress >> 8) & 0xFF);   //     |-> START Adressen i 24 bit
+
+  transmitOneByteSPI((adress >> 16) & 0xFF);  // ----|
+  transmitOneByteSPI((adress >> 8 ) & 0xFF);   //     |-> START Adressen i 24 bit
   transmitOneByteSPI(adress&0x0000FF);        // ----|     á 8 bit pr. gang
-*/
+
+/*
     transmitOneByteSPI(0x7E);// ----|
     transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
     transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
+*/
 }
 
 
@@ -279,7 +314,7 @@ char readOneByteSPI(){
   lowMosi();
   for(int k = 7; k >= 0; k--){
     cycleClock();
-    delayMicroseconds(3);
+    delayMicroseconds(2);
     // Hvis data in er HIGH efter falling-edge clock
     if(bitRead(PINB, 4)){
       bitSet(tempInputData, k);  // Sæt den pågældende bit high
@@ -329,15 +364,15 @@ void readTwoBytes(){
    *   1 → CS# goes low
    *   2 → sending READ instruction code
    *   3 → 3-byte address on SI 
-   *   4 → data out on SO
+   *   4 → data out on MISO
    *   5 → to end READ operation can use CS# to high at any time during data out. 
    *   
    *   Kilde: Datablad pp. 19
    */
-
+Serial.println("readTwoBytes");
   lowSS();                  // Step 1
   sendReadInstruction();    // Step 2
-  sendAdress(BASIC_ADRESS); // Step 3
+  sendAdress(adressenViHusker); // Step 3
 
   /*
     transmitOneByteSPI(0x7E);// ----|
@@ -391,7 +426,7 @@ void writeStuff(){
     do{                     
       writeEnable();        // Step 1  
       readStatusRegister(); // Step 2
-      Serial.print("RDSR: "); Serial.println(storeRDSR, BIN);
+    // Serial.print("RDSR: "); Serial.println(storeRDSR, BIN);
     }while(!WEL);           // Step 2
 
     // Fyr data afsted
