@@ -19,12 +19,12 @@
  * ------------------------------------------
  */
 
-#define BASIC_ADRESS      0x000000 
+#define BASIC_ADRESS      0x7D0000
 #define BASIC_ADRESS_OLD  0x7E8000
 uint32_t adressenViHusker = BASIC_ADRESS;
 // Da flashen er fyldt med 1'ere, skriver vi bevidst 0'ere
 // til den, så vi tjekker om vi rammer rigtigt.
-  int16_t arrayToSaveToFlash[] = {0xAAAA, 0xAAAA};
+  int16_t arrayToSaveToFlash[] = {0x0000, 0x0000};
   // int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
 int16_t arrayOfArrays[] = {
   &arrayToSaveToFlash
@@ -76,7 +76,7 @@ void loop() {
   Serial.print("storeRDSR:\t\t"); Serial.println(storeRDSR, BIN); // print RDSR
   Serial.println("");
 
-  delay(10);
+  delay(1000);
 }
 
 
@@ -185,8 +185,21 @@ void readStatusRegister(){
   } else {
     BP2 = 0;
   }
+  if(bitRead(storeRDSR, 5) == 1){
+    
+  }
+  if(bitRead(storeRDSR, 6) == 1){
+    
+  }
+  if(bitRead(storeRDSR, 7) == 1){
+    // SRWD
+    Serial.println("RDSR: SRWD = 1");
+  } else {
+    Serial.println("RDSR: SRWD = 0");
+  }
   
-  highSS(); // High SS afterwards
+  // highSS(); // High SS afterwards
+  // highSS(); // High SS afterwards
 }
 
 void sendContinouslyProgramCommand(){
@@ -220,8 +233,8 @@ void continouslyProgram(){
   // Serial.println("For-loop");
     // Først skal dataen opdeles, da de ligger i 16-bit samples
     // og det kun er muligt at smide 1 byte afsted ad gangen.
-    transmitOneByteSPI(arrayToSaveToFlash[i]>>8);       // First data byte
-    transmitOneByteSPI(arrayToSaveToFlash[i]&0x00FF);   // Second
+    transmitOneByteSPI((arrayToSaveToFlash[i]>>8)&0xFF);       // First data byte
+    transmitOneByteSPI(arrayToSaveToFlash[i]&0xFF);   // Second
 
     // Cycle Slave-Select (HIGH → LOW)
     cycleSS();  // Step 5
@@ -323,7 +336,7 @@ char readOneByteSPI(){
   return tempInputData;
 }
 
-char transmitOneByteSPI(char data){
+void transmitOneByteSPI(char data){
   // DDRB = DDRB|B00101111; // Set as output - Overflødig
   for(int i = 7; i >= 0; i--){
     if(bitRead(data,i) == 1){
@@ -338,16 +351,187 @@ char transmitOneByteSPI(char data){
 
 
 void readRDSCUR(){
+  // Read Security Register
   lowSS();
   transmitOneByteSPI(0x2B);
   RDSCUR = readOneByteSPI();
   highSS();
+  
+  if(bitRead(RDSCUR, 7) == 1){
+    Serial.println("RDSCUR: WPSEL = 1");
+  } else {
+    Serial.println("RDSCUR: WPSEL = 0");
+  }
+}
+
+void RDBLOCK(){
+  /*  Send en RDBLOCK kommando og gem svaret
+   *  
+   *  → CS# goes low 
+   *  → send RDBLOCK (3Ch) instruction 
+   *  → send 3 address bytes to assign one block on SI pin 
+   *  → read block's protection lock status bit on SO pin 
+   *  → CS# goes high. 
+   */
+  lowSS();
+  transmitOneByteSPI(0x3C);
+  sendAdress(adressenViHusker);
+  byte tempRDBLOCK = 0x00;
+  tempRDBLOCK = readOneByteSPI();
+  tempRDBLOCK = tempRDBLOCK & 0xFF;
+  
+  if(tempRDBLOCK == 0xFF){
+    // Der er låst!
+    Serial.print("L--RDBLOCK:\t"); Serial.println(tempRDBLOCK, BIN);
+  } else {
+    // Der er IKKE låst!
+    Serial.print("UL-RDBLOCK:\t"); Serial.println(tempRDBLOCK, BIN);
+  }
+  highSS();
 }
 
 
+void setGBULK(){
+  /*  Flow: 
+   * → CS# goes low 
+   * → send GBULK (0x98) instruction 
+   * → CS# goes high <- DEN SKAL VÆRE SAMMEN MED DEN SIDSTE DATA-BIT!
+   */
+
+  lowSS();
+
+  highMosi();//   |
+  cycleClock();// |-> Bit 7
+
+  lowMosi();//    |
+  cycleClock();// |-> Bit 6
+
+  lowMosi();//    |
+  cycleClock();// |-> Bit 5
+
+  highMosi();//   |
+  cycleClock();// |-> Bit 4
+  
+  highMosi();//   |
+  cycleClock();// |-> Bit 3
+
+  lowMosi();//    |
+  cycleClock();// |-> Bit 2
+
+  lowMosi();//    |
+  cycleClock();// |-> Bit 1
+
+  lowMosi();//    |-> Bit 0
+  PORTB |=    B00100100;// Her settes clocken OG SS samtidig
+  PORTB &=    B11011111;// Low clock
+  
+  // No need for highSS();
 
 
+  /* Bruges til skabelon til Bit 0
+    PORTB &=    B11110111;   // Set low MOSI
+    PORTB |=    B00100000;  // Set it to high // CLOCK
+    PORTB |=    B00000100;  // Set it to high // SS
+  */
+  
+}
 
+void setGBLK(){
+  /*  Flow: 
+   * → CS# goes low 
+   * → send GBLK (0x7E) instruction 
+   * → CS# goes high <- DEN SKAL VÆRE SAMMEN MED DEN SIDSTE DATA-BIT!
+   */
+
+  lowSS();
+
+  lowMosi();//    |
+  cycleClock();// |-> Bit 7
+
+  highMosi();//   |
+  cycleClock();// |-> Bit 6
+
+  highMosi();//   |
+  cycleClock();// |-> Bit 5
+
+  highMosi();//   |
+  cycleClock();// |-> Bit 4
+  
+  highMosi();//   |
+  cycleClock();// |-> Bit 3
+
+  highMosi();//   |
+  cycleClock();// |-> Bit 2
+
+  highMosi();//   |
+  cycleClock();// |-> Bit 1
+
+  lowMosi();//    |-> Bit 0
+  PORTB |=    B00100100;// Her settes clocken OG SS samtidig
+  PORTB &=    B11011111;// Low clock
+  
+  // No need for highSS();
+
+
+  /* Bruges til skabelon til Bit 0
+    PORTB &=    B11110111;   // Set low MOSI
+    PORTB |=    B00100000;  // Set it to high // CLOCK
+    PORTB |=    B00000100;  // Set it to high // SS
+  */
+  
+}
+
+void writeStatusRegister(){
+  // Write Status Register
+  
+  /* The sequence of issuing WRSR instruction is: 
+   *  → CS# goes low
+   *  → sending WRSR instruction code
+   *  → Status Register data on SI
+   *  → CS# goes high.
+   * 
+   */
+  lowSS();
+  do{                     
+      writeEnable();        //   
+      readStatusRegister(); // 
+    // Serial.print("RDSR: "); Serial.println(storeRDSR, BIN);
+    }while(!WEL);           // 
+  
+  highSS();
+  lowSS();
+  
+  transmitOneByteSPI(0x01);
+  
+
+  highMosi();//   |
+  cycleClock();// |-> Bit 7
+
+  lowMosi();//    |
+  cycleClock();// |-> Bit 6
+
+  lowMosi();//    |
+  cycleClock();// |-> Bit 5
+
+  lowMosi();//    |
+  cycleClock();// |-> Bit 4
+  
+  lowMosi();//    |
+  cycleClock();// |-> Bit 3
+
+  lowMosi();//    |
+  cycleClock();// |-> Bit 2
+
+  highMosi();//   |
+  cycleClock();// |-> Bit 1
+
+  lowMosi();//    |-> Bit 0
+  PORTB |=    B00100100;// Her settes clocken OG SS samtidig
+  PORTB &=    B11011111;// Low clock
+  // SS er high
+
+  
+}
 
 
 
@@ -425,10 +609,13 @@ void writeStuff(){
     // Vent på Write-Enable-Latch bliver 1
     do{                     
       writeEnable();        // Step 1  
+      writeStatusRegister();
       readStatusRegister(); // Step 2
     // Serial.print("RDSR: "); Serial.println(storeRDSR, BIN);
     }while(!WEL);           // Step 2
 
+      // setGBULK();
+    RDBLOCK();
     // Fyr data afsted
     continouslyProgram();   // Step 3
 
@@ -436,7 +623,9 @@ void writeStuff(){
     // Vent på Write-In-Progress bitten bliver 0 igen
     do{                     // Step 4
       readStatusRegister(); // Step 4
-      Serial.println("WIP 1");
+      if(WIP){
+        Serial.println("WIP 1");
+      }
     }while(WIP);            // Step 4
 
     readRDSCUR();           // Step 5
@@ -450,6 +639,7 @@ void writeStuff(){
       // Denne else er overflødig
       Serial.println("Ting virkede!");
     }
+    // setGBLK();
     writeDisable();
     highSS(); // Vi er done nu
 }
