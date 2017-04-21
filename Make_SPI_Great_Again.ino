@@ -19,7 +19,7 @@
  * ------------------------------------------
  */
 
-#define BASIC_ADRESS      0x7D0000
+#define BASIC_ADRESS      0x000000
 #define BASIC_ADRESS_OLD  0x7E8000
 uint32_t adressenViHusker = BASIC_ADRESS;
 const uint32_t startAdressen = BASIC_ADRESS;
@@ -29,23 +29,22 @@ char antalBytes = 2;
 
 // Da flashen er fyldt med 1'ere, skriver vi bevidst 0'ere
 // til den, så vi tjekker om vi rammer rigtigt.
-  int8_t arrayToSaveToFlash[] = {0x00};
+  int8_t arrayToSaveToFlash[] = {0xAA, 0xAA};
   // int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
-int16_t arrayOfArrays[] = {
-  &arrayToSaveToFlash
-          };
 
 
 
-char storeReadData[2] = {0x00, 0x00}; // Her gemmer vi de to byte vi læser
-char storeRDSR = 0x00;                // RDSR gemmes her. Omskriv til lokal variabel
-char RDSCUR = 0x00;                   // RDSCUR gemmes her. Omskriv til lokal variabel
 
-boolean WEL = true;   // Write Enable Latch - bit
-boolean WIP = false;  // Write In Progress - bit
-boolean BP0 = true;//   |
-boolean BP1 = true;//   |-> Protection
-boolean BP2 = true;//   |
+uint8_t storeReadData[2]  = {0x00, 0x00}; // Her gemmer vi de to byte vi læser
+char storeRDSR            = 0x00;// RDSR gemmes her. Omskriv til lokal variabel
+char RDSCUR               = 0x00; // RDSCUR gemmes her. Omskriv til lokal variabel
+
+boolean WEL   = true;   // Write Enable Latch - bit
+boolean WIP   = false;  // Write In Progress - bit
+boolean BP0   = true;//   |
+boolean BP1   = true;//   |-> Protection
+boolean BP2   = true;//   |
+boolean WPSEL = false;
 
 void setup() {
   DDRB = DDRB|B00101111; // Set input/output pinmodes
@@ -56,39 +55,51 @@ void setup() {
 
 void loop() {
   // Resetter globale variabler
-  storeReadData[0] = 0x00;
-  storeReadData[1] = 0x00;
-  storeRDSR = 0x00;
-  RDSCUR = 0x00;
-  
+  storeReadData[0]  = 0x00;
+  storeReadData[1]  = 0x00;
+  storeRDSR         = 0x00;
+  RDSCUR            = 0x00;
+  /*
   while(1){
     writeEnable();
     // delayMicroseconds(5);
+    
+    setGBULK();
     readStatusRegister(); // Write Enable 
     readRDSCUR();
-      Serial.print("Status:\t"); Serial.println(storeRDSR, BIN); // Write Enable
-      Serial.print("RDSCUR:\t"); Serial.println(RDSCUR, BIN); // Write Enable
-    
+      
+
+    uint8_t tempRDSCUR = RDSCUR;
+    uint8_t tempSR = storeRDSR;
+
+    pulseBreakPin();
+    setGBLK();
+    readRDSCUR();
+    pulseBreakPin();
+
+
+
     
     // delay(200);
+    setGBLK();
     writeDisable();
     // delayMicroseconds(5);
     readStatusRegister(); // Write Enable 
     readRDSCUR();
-      Serial.print("Status:\t"); Serial.println(storeRDSR, BIN); // Write Enable
-      Serial.print("RDSCUR:\t"); Serial.println(RDSCUR, BIN); // Write Enable
+
+    
+    Serial.print("Status:\t"); Serial.println(tempSR, BIN); // Write Enable
+    Serial.print("RDSCUR:\t"); Serial.println(tempRDSCUR, BIN); // Write Enable
+    Serial.print("Status:\t"); Serial.println(storeRDSR, BIN); // Write Enable
+    Serial.print("RDSCUR:\t"); Serial.println(RDSCUR, BIN); // Write Enable
     
     
     Serial.println("-----------");
     // delay(200);
   }
-    if(adressenViHusker == BASIC_ADRESS + 0x2){
-      adressenViHusker = BASIC_ADRESS;
-    } else {
-  //    adressenViHusker++;
-    }
+  */
+    
   
-  Serial.print("adressenViHusker:\t"); Serial.println(adressenViHusker, HEX);
   pageProgram();  // Page program først!
   Serial.print("adressenViHusker:\t"); Serial.println(adressenViHusker, HEX);
       // writeStuff();   // Først skriver vi ting
@@ -102,9 +113,14 @@ void loop() {
   Serial.print("storeReadData[1]:\t"); Serial.println(storeReadData[1], HEX); // hvad vi har læst
 
   Serial.print("storeRDSR:\t\t"); Serial.println(storeRDSR, BIN); // print RDSR
-  Serial.println("");
+  Serial.println("------------------------------");
 
-  delay(1000);
+  if(adressenViHusker > BASIC_ADRESS + 0x0000FF){
+    adressenViHusker = BASIC_ADRESS;
+  } else {
+    adressenViHusker = adressenViHusker + 2;
+  }
+  delay(10);
 }
 
 
@@ -152,8 +168,8 @@ void writeEnable(){
    * 
    *  Kilde: Datablad pp. 16
    */
-   
-  lowSS();                  // Step 1
+  cycleSS();                // Step 1
+  
   transmitOneByteSPI(0x06); // Step 2
   highSS();                 // Step 3
 } // writeEnable
@@ -376,7 +392,7 @@ void transmitOneByteSPI(char data){
     }
     cycleClock();   
   }// for
- 
+
 }
 
 
@@ -386,12 +402,8 @@ void readRDSCUR(){
   transmitOneByteSPI(0x2B);
   RDSCUR = readOneByteSPI();
   highSS();
-  
-  if(bitRead(RDSCUR, 7) == 1){
-    // Serial.println("RDSCUR: WPSEL = 1");
-  } else {
-    // Serial.println("RDSCUR: WPSEL = 0");
-  }
+
+  WPSEL = bitRead(RDSCUR, 7);
 }
 
 void RDBLOCK(){
@@ -576,29 +588,40 @@ void writeStatusRegister(){
 void readTwoBytes(){
   /*  The sequence of issuing READ instruction is: 
    *   1 → CS# goes low
-   *   2 → sending READ instruction code
+   *   2 → sending READ instruction code (0x03)
    *   3 → 3-byte address on SI 
    *   4 → data out on MISO
    *   5 → to end READ operation can use CS# to high at any time during data out. 
    *   
    *   Kilde: Datablad pp. 19
    */
+   uint8_t temp  = 0x00;
+   uint8_t temp2 = 0x00;
 // Serial.println("readTwoBytes");
+  Serial.print("adresseRead:\t\t"); Serial.println(adressenViHusker, HEX);
   lowSS();                  // Step 1
-  sendReadInstruction();    // Step 2
-  sendAdress((startAdressen)); // Step 3
-  Serial.print("adresseRead:\t"); Serial.println(startAdressen, HEX);
+  sendReadInstruction();    // Step 2   (0x03)
+  sendAdress(adressenViHusker); // Step 3
+  
 
-  /*
+  /*  
     transmitOneByteSPI(0x7E);// ----|
     transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
     transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
   */
 
   // Step 4 
-  storeReadData[0] = readOneByteSPI();//  ---|-> Læser 2x8 bit og gemmer dem
-  storeReadData[1] = readOneByteSPI();//  ---|    i en global variabel, for nu.
-                                      //  ---| Skift denne til at bruge readData() i stedet
+  temp  = readOneByteSPI() & 0xFF;//  ---|-> Læser 2x8 bit og gemmer dem
+  storeReadData[0] = temp  & 0xFF;//  ---|-> Læser 2x8 bit og gemmer dem
+  
+
+  
+  temp2 = readOneByteSPI() & 0xFF;//  ---|-> Læser 2x8 bit og gemmer dem
+  storeReadData[1] = temp2 & 0xFF;//  ---|    i en global variabel, for nu.
+
+  
+  Serial.print("Data[0]:\t"); Serial.println(temp & 0xFF, BIN);
+  Serial.print("Data[1]:\t"); Serial.println(temp2 & 0xFF, BIN);                                    //  ---| Skift denne til at bruge readData() i stedet
   
   highSS();  // Step 5
   // Vi er done
@@ -694,41 +717,52 @@ void pageProgram(){
     // uint32_t adressenViHusker = BASIC_ADRESS;
     // const uint32_t startAdressen = BASIC_ADRESS;
 
+    Serial.print("adresseWrite:\t\t"); Serial.println(adressenViHusker, HEX);
+
+
     lowSS();
+      
+    
     // Gør klar til at sende data afsted
     // writeEnable();
-    readStatusRegister();
+    // readStatusRegister();
     do{                     
       writeEnable();        // Write Enable 
+      setGBULK();
       readStatusRegister(); // Write Enable 
     // Serial.print("RDSR: "); Serial.println(storeRDSR, BIN);
     }while(!WEL);           // Write Enable 
-      
+          
     highSS();
     lowSS();
-
+    setGBULK();
+    readRDSCUR();
+    lowSS();
+    
+    // RDBLOCK(); // Tjek lige om der er låst
     transmitOneByteSPI(0x02);       // Sender kommandoen om Page Program
     
 
     
     sendAdress(adressenViHusker);   // Sender adressen
     for(int i = 0; i < sizeof(arrayToSaveToFlash); i++){
-      
-      Serial.println("\nSender En byte data\n");
+      //Serial.println("\nSender En byte data\n");
       transmitOneByteSPI(arrayToSaveToFlash[i]);
     }
 
-    for(int k = 0; k < 2048 - sizeof(arrayToSaveToFlash); k++){
+    for(int k = 1; k <= 2048 - sizeof(arrayToSaveToFlash) - 1; k++){
+      // Serial.println(k);
       emptyBytes();
+      
     }
 
     
-
+    // pulseBreakPin();
     // Sender den sidste byte!
     lowMosi();
     for(int k = 7; k > 0; k--){
       cycleClock();
-      delayMicroseconds(0);
+      delayMicroseconds(1);
     }
     PORTB |=    B00100100;// Her settes clocken OG SS samtidig
     PORTB &=    B11011111;// Low clock
@@ -738,7 +772,7 @@ void pageProgram(){
     // SS er høj på dette tidspunkt
     // Nu gemmer chippen sager!
     delay(5); // Ifølge databladet (tPP) er chippen max 5 ms om at gemme
-
+    // writeDisable();
     
     // Vent på Write-In-Progress bitten bliver 0 igen
     do{                     // Step 4
@@ -760,6 +794,16 @@ void pageProgram(){
       Serial.println("Ting virkede!");
     }
     // setGBLK();
+
+    readStatusRegister();
+    highSS();
+    delayMicroseconds(5);
+    pulseBreakPin();
+    setGBLK();
+    readRDSCUR();
+    pulseBreakPin();
+    delayMicroseconds(5);
+    readStatusRegister();
     writeDisable();
     highSS(); // Vi er done nu
 }
@@ -806,8 +850,16 @@ void throwErrorMessage(){
 // ####   BASIC FUNCTIONS   ####
 // #############################
 
+void pulseBreakPin(){
+  PORTB |=    B00000010;
+  delayMicroseconds(1);
+  PORTB &=    B11111101;
+}
+
+
 void emptyBytes(){
   lowMosi();
+  // Serial.println("EB");
   for(int i = 8; i > 0; i--){
     cycleClock();
   }
