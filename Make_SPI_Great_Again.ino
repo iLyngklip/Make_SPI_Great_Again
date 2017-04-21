@@ -1,21 +1,23 @@
-/*  PINOUT
- *    Arduino  T Port      T  Papilio
- * Clock:   13 | B00100000 |  13
- * MISO:    12 | B00010000 |  12
- * MOSI:    11 | B00001000 |  11
- * SS:      10 | B00000100 |  09
- * 
+
+/*
+ * Clock:   13  B00100000
+ * MISO:    12  B00010000
+ * MOSI:    11  B00001000
+ * SS:      10  B00000100
  */
+#define DEBUG 0
+  /*
+   * 3: FULL
+   * 2: RDSR FULL
+   * 1: RDSR FAST      <-- Choose this if you want serial output
+   * 0: NONE            
+   * 
+   */
 
-
-// int16_t arrayToSaveToFlash[] = {0x0000, 0x0000, 0x0000, 0x0000};
-int16_t arrayToSaveToFlash[] = {0x0000, 0x0000};
-
+// const int slaveSelectPin = 10;
 char storeReadData[2] = {0x00, 0x00};
 char storeRDSR = 0x00;
-char RDSCUR = 0x00;
-
-boolean WEL = true;
+boolean WEL = false;
 boolean WIP = false;
 
 void setup() {
@@ -32,7 +34,6 @@ void setup() {
   Serial.print("storeReadData[0]: "); Serial.println(storeReadData[0], HEX);
   Serial.print("storeReadData[1]: "); Serial.println(storeReadData[1], HEX);
   */
-  delay(2000);
 }
 
 void loop() {
@@ -45,7 +46,6 @@ void loop() {
   storeReadData[0] = 0x00;
   storeReadData[1] = 0x00;
   storeRDSR = 0x00;
-  RDSCUR = 0x00;
   
 
   writeStuff();
@@ -58,55 +58,9 @@ void loop() {
   Serial.print("storeRDSR:\t\t"); Serial.println(storeRDSR, BIN);
   Serial.println("");
 
-  delay(1000);
-}
+  delay(200);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ######################################
-// ####   SPECIFIC WRITE FUNCTIONS   ####
-// ######################################
-
-  /* SÅDAN SER WRITE-CYCLEN UD!
-   * ----------------------------
-   * WREN                                         0x06
-   * RDSR                                         0x05
-   *  L_ WREN=1?                                    Bit 1 fra RDSR
-   * Contenious program mode                      0xAD 
-   *  L_ Adressen                                   ADD(24)
-   *  L_ Write data                                 DATA(16)
-   * RDSR command                                 0x05
-   *  L_ WIP = 0?                                   Bit 0 fra RDSR      
-   * RDSCUR command - Tjek om det lykkedes        0x2B
-   *  L_ P_FAIL / E_FAIL = 1?                       FORFRA! ALT ER DONE! :o
-   * WREN = 0   0x04
-   */
-
-
-void writeEnable(){
-  setSSHigh();
-  transmitOneByteSPI(0x06); // WEL = 1
-  setSSLow();
-  Serial.println("WE");
-}
-
-void writeDisable(){
-  setSSHigh();
-  transmitOneByteSPI(0x04); // WEL = 0
-  setSSLow();
+  
 }
 
 void readStatusRegister(){
@@ -125,97 +79,18 @@ void readStatusRegister(){
   } else {
     WIP = false;
   }
-  setSSHigh(); 
+  setSSHigh();
 }
 
-void sendContinouslyCommand(){
-  transmitOneByteSPI(0xAD); // CP command
-}
-
-void continouslyProgram(){
-      setSSLow();
-      if(sizeof(arrayToSaveToFlash) > 2){
-        sendContinouslyCommand();
+void WRDI(){
+  setSSHigh();
+  transmitOneByteSPI(0x04); // WREN = 0
+  setSSLow();
   
-        transmitOneByteSPI(0x7E);// ----|   
-        transmitOneByteSPI(0x80);//     |-> START Adressen i 24 bit
-        transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
-  
-        for(int i = 0; i <= sizeof(arrayToSaveToFlash); i = i + 2){
-          transmitOneByteSPI(arrayToSaveToFlash[i]>>8);       // First data byte
-          transmitOneByteSPI(arrayToSaveToFlash[i]&0x00FF);   // Second
-          
-          cycleSS();
-          if(i < sizeof(arrayToSaveToFlash) - 2){
-            sendContinouslyCommand();
-          }
-        }
-        writeDisable();
-      } else {
-        // Hvis der 2 byte eller derunder! (det sker måske ikke)
-      }
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// #####################################
-// ####   SPECIFIC READ FUNCTIONS   ####
-// #####################################
-  /* SÅDAN SER READ-CYCLEN UD
-   * --------------------------------
-   * Read instruction     0x03            <- SPECIFIC READ FUNCTIONS
-   * Adresse              ADD(24)         <- READ/WRITE FUNCTIONS
-   * Data                 Kommer ind      <- SPECIFIC READ FUNCTIONS
-   * SS high for at slutte
-   */
-
-  void sendReadInstruction(){
-    /*  Send read-kommandoen til flashen
-     */
-  }
-
-  void readData(char lenghtInBytes){
-    /*  Denne funktion skal læse lengthInBytes-antal bytes
-     *   fra flash'en
-     */
-  }
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ##################################
-// ####   READ/WRITE FUNCTIONS   ####
-// ##################################
-
-void sendAdress(uint32_t adress){
-  /* Send adressen over SPI
-   *  
-   */
 }
 
-
-char readOneByteSPI(){
+char readOneByteSPI()
+{
   char tempInputData = 0x00;
   // Læs data
   lowMosi();
@@ -228,14 +103,10 @@ char readOneByteSPI(){
     // Hvis data in er HIGH efter falling
     if(bitRead(PINB, 4) == 1){
       bitSet(tempInputData, k);  
-    } /* else {
-      bitClear(tempInputData, k);
     }// if
-    */
   }// for
   return tempInputData;
 }
-
 char transmitOneByteSPI(char data){
   // DDRB = DDRB|B00101111; // Set as output
   
@@ -256,93 +127,70 @@ char transmitOneByteSPI(char data){
  
 }
 
-
-void readRDSCUR(){
-  setSSLow();
-  transmitOneByteSPI(0x2B);
-  
-  RDSCUR = readOneByteSPI();
-  setSSHigh();
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ##################################
-// ####   READ/WRITE FUNCTIONS   ####
-// ##################################
-void readStuff(){
-  /* SÅDAN SER READ-CYCLEN UD
-   * --------------------------------
+void readStuff()
+{
+  /*
    * Read instruction     0x03
+   * 
    * Adresse              ADD(24)
+   *                      
    * Data                 Kommer ind
+   * 
    * SS high for at slutte
+   * 
    */
   setSSLow(); // Gør klar
   
-  transmitOneByteSPI(0x03); // Read command
+  transmitOneByteSPI(0x03);
 
   transmitOneByteSPI(0x7E);// ----|
   transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
   transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
 
-  storeReadData[0] = readOneByteSPI();//  ---|
-  storeReadData[1] = readOneByteSPI();//  ---|-> Læser 2x8 bit og gemmer dem
+  storeReadData[0] = readOneByteSPI(); 
+  storeReadData[1] = readOneByteSPI();
 
   setSSHigh(); // Vi er done
 }
 
-void writeStuff(){
+
+void writeStuff()
+{
   /* SÅDAN SER WRITE-CYCLEN UD!
    * ----------------------------
-   * WREN                                         0x06
-   * RDSR                                         0x05
-   *  L_ WREN=1?                                    Bit 1 fra RDSR
-   * Contenious program mode                      0xAD 
-   *  L_ Adressen                                   ADD(24)
-   *  L_ Write data                                 DATA(16)
-   * RDSR command                                 0x05
-   *  L_ WIP = 0?                                   Bit 0 fra RDSR      
-   * RDSCUR command - Tjek om det lykkedes        0x2B
-   *  L_ P_FAIL / E_FAIL = 1?                       FORFRA! ALT ER DONE! :o
-   * WREN = 0   0x04  Denne er skrevet!
+   * WREN     0x06
+   * 
+   * RDSR     0x05
+   * 
+   * WREN=1?  0x06
+   * 
+   * Program command (how?)   fyr data                      |
+   *                                                        |----> 0xAD => ADD(24) + DATA(16)
+   * Write program data (Write erase adress)    fyr data    |
+   * 
+   * RDSR command   0x05
+   * 
+   * WIP = 0?       
+   * 
+   * Read array data
+   * 
+   * Verify OK?
+   * 
+   * WREN = 0   0x04
+   * 
    */
    
-    writeEnable();          // Step 1
+    // No need for delays, the chip is WAY 
+    // than the arduino
     
-    do{                     // Step 2
-      readStatusRegister(); // Step 2
-      Serial.println("WR: 2");
-    }while(!WEL);           // Step 2
-
-    continouslyProgram();   // Step 3
-
-    do{                     // Step 4
-      readStatusRegister(); // Step 4
-      Serial.println("WR: 4");
-    }while(WIP);           // Step 4
-
-    readRDSCUR();           // Step 5
-    // Her tjekker vi om det faktisk lykkedes
-    if(bitRead(RDSCUR, 5) == 1 || bitRead(RDSCUR, 6) == 1){
-      // The programming failed! 
-      throwErrorMessage();
-    } else {
-      // Ting virkede! :D
-      Serial.println("Ting virkede!");
-    }
-
-  /* Bruges ikke mere
+    char tempRDSR = 0x00;
+    
+    setSSLow(); // Gør klar
+   
+    transmitOneByteSPI(0x06); // WREN = 1
+    readStatusRegister();     // read dat shit
+    
+  
     transmitOneByteSPI(0x7E);// ----|
     transmitOneByteSPI(0x80);//     |-> Adressen i 24 bit
     transmitOneByteSPI(0x00);// ----|     á 8 bit pr. gang
@@ -351,11 +199,8 @@ void writeStuff(){
     transmitOneByteSPI(0xAD);// ----|     á 8 bit pr. gang
   
     readStatusRegister();     // read dat shit
-
-    
-    writeDisable();
-  */
-    
+    WRDI();
+  
     setSSHigh(); // Vi er done nu
 
 }
@@ -375,43 +220,14 @@ void writeStuff(){
 
 
 
-// #############################
-// ####   OTHER FUNCTIONS   ####
-// #############################
-void throwErrorMessage(){
-  Serial.println("-------------------------------------------");
-  Serial.println("Something went wrong because you are stupid");
-  Serial.println("-------------------------------------------");
-  Serial.print("RDSCUR:\t\t"); Serial.println(RDSCUR, BIN);
-  Serial.print("storeRDSR:\t"); Serial.println(storeRDSR, BIN);
-  Serial.println("-------------------------------------------");
-}
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-// #############################
-// ####   BASIC FUNCTIONS   ####
-// #############################
-void cycleSS(){
-  setSSHigh();
-  setSSLow();
-}
 
 void setSSLow(){
   PORTB =     B00000000; // Set ALL low
 }
-
 void setSSHigh(){
   PORTB =     B00000100; // Set SS high  
 }
@@ -420,29 +236,25 @@ void lowMosi(){
   //DDRB = DDRB|B00101111;  // Set as output
   PORTB &=    B11110111;   // Set low
 }
-
 void highMosi(){
   //DDRB = DDRB|B00101111; // Set as output
   PORTB |=    B00001000;  // Set it to high
 }
-
 void lowSS(){
   //DDRB = DDRB|B00101111;  // Set as output
   PORTB &=    B11111011;   // Set low
 }
-
 void highSS(){
   //DDRB = DDRB|B00101111; // Set as output
   PORTB |=    B00000100;  // Set it to high
 }
-
 void highClock(){
   //DDRB = DDRB|B00101111; // Set as output
   PORTB |=    B00100000;  // Set it to high
 }
-
 void lowClock(){
   //DDRB = DDRB|B00101111;  // Set as output
   PORTB &=    B11011111;   // Set low
 }
+
 
