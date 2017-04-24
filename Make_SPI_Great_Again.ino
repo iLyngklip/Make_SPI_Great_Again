@@ -12,14 +12,14 @@
 /*  PINOUT
  * ------------------------------------------
  * |     Arduino  T Port      T  Papilio    |
- * |  Clock:   13 | B00100000 |  13         |
+ * |  Clock:   13 | B00100000 |  13         |jeg er sej
  * |  MISO:    12 | B00010000 |  12         |
  * |  MOSI:    11 | B00001000 |  11         |
  * |  SS:      10 | B00000100 |  09         |
  * ------------------------------------------
  */
 
-#define BASIC_ADRESS      0x010000
+#define BASIC_ADRESS      0x010001
 #define BASIC_ADRESS_OLD  0x7E8000
 uint32_t adressenViHusker = BASIC_ADRESS;
 const uint32_t startAdressen = BASIC_ADRESS;
@@ -900,3 +900,4 @@ void lowClock(){
   //DDRB = DDRB|B00101111;  // Set as output - Overflødig
   PORTB &=    B11011111;   // Set low
 }   // JEG ER RET SEJ!
+
