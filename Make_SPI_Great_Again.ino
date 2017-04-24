@@ -19,7 +19,7 @@
  * ------------------------------------------
  */
 
-#define BASIC_ADRESS      0x010001
+#define BASIC_ADRESS      0x010000
 #define BASIC_ADRESS_OLD  0x7E8000
 uint32_t adressenViHusker = BASIC_ADRESS;
 const uint32_t startAdressen = BASIC_ADRESS;
